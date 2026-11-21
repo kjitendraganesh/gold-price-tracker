@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gold price tracker</title>
+<style>
+:root{--bg:#f1efe9;--panel:#fbfaf6;--ink:#1f2622;--mute:#6b736d;--line:#dcd8cc;--c22:#b8741a;--c24:#1f5f5b;--up:#2e7d4f;--down:#b23a3a}
+@media(prefers-color-scheme:dark){:root{--bg:#161a18;--panel:#1d2321;--ink:#ece9df;--mute:#9aa39c;--line:#2e3632;--c22:#e0a24a;--c24:#5cc2b8;--up:#6fcf97;--down:#ef7f7f}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;font-variant-numeric:tabular-nums}
+main{max-width:1000px;margin:0 auto;padding:28px 18px 48px}
+h1{font:600 26px/1.2 Georgia,'Times New Roman',serif;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 22px}
+.prices{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);background:var(--panel);border-radius:6px;overflow:hidden}
+.p{padding:18px 20px}.p+.p{border-left:1px solid var(--line)}
+.p .k{display:flex;align-items:center;gap:8px;color:var(--mute)}
+.dot{width:10px;height:10px;border-radius:50%}
+.p .v{font:600 clamp(28px,6vw,44px)/1.1 Georgia,serif;margin:6px 0 2px}
+.p .ch{font-size:14px}.up{color:var(--up)}.down{color:var(--down)}
+.bar{display:flex;flex-wrap:wrap;gap:10px 22px;margin:20px 0 10px;align-items:center;justify-content:space-between}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:none;color:var(--ink);padding:7px 12px;font:inherit;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+button:focus-visible{outline:2px solid var(--c24);outline-offset:-2px}
+.chart{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;height:420px;position:relative}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px}
+.stats div{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:10px 14px}
+.stats small{display:block;color:var(--mute)}
+#msg{color:var(--mute);margin-top:14px}
+@media(max-width:560px){.prices{grid-template-columns:1fr}.p+.p{border-left:0;border-top:1px solid var(--line)}.chart{height:320px}}
+</style></head><body><main>
+<h1>Gold price tracker</h1>
+<p class="sub" id="sub">Loading readings…</p>
+<section class="prices">
+ <div class="p"><div class="k"><span class="dot" style="background:var(--c22)"></span>22k (916)</div><div class="v" id="v22">–</div><div class="ch" id="c22"></div></div>
+ <div class="p"><div class="k"><span class="dot" style="background:var(--c24)"></span>24k (999)</div><div class="v" id="v24">–</div><div class="ch" id="c24"></div></div>
+</section>
+<div class="bar">
+ <div class="seg" id="range"></div>
+ <div style="display:flex;gap:10px;flex-wrap:wrap">
+  <div class="seg" id="cur"></div><div class="seg" id="unit"></div>
+ </div>
+</div>
+<div class="chart"><canvas id="cv" aria-label="Gold price over time" role="img"></canvas></div>
+<div class="stats" id="stats"></div>
+<p id="msg"></p>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const RANGES={'24H':1,'7D':7,'30D':30,'90D':90,'1Y':365,'All':null};
+const st={range:'7D',cur:'INR',unit:'1 g'};let rows=[],chart;
+const $=id=>document.getElementById(id);
+function seg(id,opts,key){const el=$(id);el.innerHTML='';opts.forEach(o=>{const b=document.createElement('button');b.textContent=o;
+ b.setAttribute('aria-pressed',st[key]===o);b.onclick=()=>{st[key]=o;render()};el.appendChild(b)})}
+async function load(){
+ try{const t=await (await fetch('data/prices.csv?'+Date.now())).text();
+  rows=t.trim().split('\n').slice(1).map(l=>{const c=l.split(',');return{t:Date.parse(c[0]),a:+c[1],b:+c[2],fx:+c[3]}}).filter(r=>r.t&&r.a&&r.b);
+ }catch(e){$('msg').textContent='Could not load data/prices.csv.';return}
+ if(!rows.length){$('sub').textContent='No readings yet. Run the “Fetch gold price” workflow once.';return}
+ render();
+}
+function conv(r){const m=(st.cur==='INR'?r.fx:1)*(st.unit==='10 g'?10:1);return[r.a*m,r.b*m]}
+const fmt=(n)=>n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const sym=()=>st.cur==='INR'?'₹':'S$';
+function render(){
+ seg('range',Object.keys(RANGES),'range');seg('cur',['INR','SGD'],'cur');seg('unit',['1 g','10 g'],'unit');
+ const last=rows[rows.length-1];
+ const days=RANGES[st.range];const cut=days?last.t-days*864e5:0;
+ const v=rows.filter(r=>r.t>=cut);const first=v[0];
+ const [l22,l24]=conv(last),[f22,f24]=conv(first);
+ $('v22').textContent=sym()+fmt(l22);$('v24').textContent=sym()+fmt(l24);
+ for(const [id,l,f] of [['c22',l22,f22],['c24',l24,f24]]){const d=l-f,p=f?d/f*100:0;
+  $(id).className='ch '+(d>=0?'up':'down');$(id).textContent=`${d>=0?'▲':'▼'} ${fmt(Math.abs(d))} (${p.toFixed(2)}%) over ${st.range==='All'?'all time':st.range}`}
+ $('sub').textContent=`Per ${st.unit}, ${st.cur}. Updated ${new Date(last.t).toLocaleString()} · ${rows.length} readings stored · SGD→INR ${last.fx.toFixed(3)}`;
+ const s22=v.map(r=>({x:r.t,y:conv(r)[0]})),s24=v.map(r=>({x:r.t,y:conv(r)[1]}));
+ const css=getComputedStyle(document.documentElement),c22=css.getPropertyValue('--c22'),c24=css.getPropertyValue('--c24'),grid=css.getPropertyValue('--line'),mute=css.getPropertyValue('--mute');
+ const ds=(label,data,color)=>({label,data,borderColor:color,backgroundColor:color,borderWidth:2,pointRadius:v.length<60?3:0,pointHoverRadius:5,tension:.15});
+ const span=(v[v.length-1].t-v[0].t)/864e5;
+ const tick=x=>{const d=new Date(x);return span<=2?d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):span>400?d.toLocaleDateString([],{month:'short',year:'2-digit'}):d.toLocaleDateString([],{day:'numeric',month:'short'})};
+ if(chart)chart.destroy();
+ chart=new Chart($('cv'),{type:'line',data:{datasets:[ds('22k',s22,c22),ds('24k',s24,c24)]},options:{
+  responsive:true,maintainAspectRatio:false,animation:false,parsing:false,interaction:{mode:'index',intersect:false},
+  scales:{x:{type:'linear',ticks:{callback:tick,color:mute,maxTicksLimit:7},grid:{color:grid}},
+          y:{ticks:{color:mute,callback:x=>sym()+fmt(x)},grid:{color:grid}}},
+  plugins:{legend:{labels:{color:mute,usePointStyle:true}},tooltip:{callbacks:{title:i=>new Date(i[0].parsed.x).toLocaleString(),label:c=>`${c.dataset.label}: ${sym()}${fmt(c.parsed.y)}`}}}}});
+ const mm=a=>[Math.min(...a),Math.max(...a)];const [lo,hi]=mm(s24.map(p=>p.y));const [lo2,hi2]=mm(s22.map(p=>p.y));
+ $('stats').innerHTML=[['24k high',hi],['24k low',lo],['22k high',hi2],['22k low',lo2]].map(([k,n])=>`<div><small>${k} (${st.range})</small>${sym()}${fmt(n)}</div>`).join('');
+}
+load();
+</script></body></html>
