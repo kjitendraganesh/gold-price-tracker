@@ -4,6 +4,7 @@ import csv, os, re, sys, urllib.request
 from datetime import datetime, timezone
 
 CSV_PATH = os.path.join(os.path.dirname(__file__), "data", "prices.csv")
+HEADER = ["timestamp_utc", "sgd_22k_per_g", "sgd_24k_per_g", "sgd_inr", "inr_22k_per_g", "inr_24k_per_g"]
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 
@@ -44,12 +45,13 @@ def main():
     rate = fx(last_fx())
     if not (50 < p22 < 1000 and 50 < p24 < 1000):
         raise RuntimeError(f"Implausible prices: {p22}, {p24}")
-    row = [datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), p22, p24, rate]
+    row = [datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), p22, p24, rate,
+           round(p22 * rate, 2), round(p24 * rate, 2)]
     new = not os.path.exists(CSV_PATH)
     os.makedirs(os.path.dirname(CSV_PATH), exist_ok=True)
     with open(CSV_PATH, "a", newline="") as f:
         w = csv.writer(f)
-        if new: w.writerow(["timestamp_utc", "sgd_22k_per_g", "sgd_24k_per_g", "sgd_inr"])
+        if new: w.writerow(HEADER)
         w.writerow(row)
     print("Saved:", row)
 

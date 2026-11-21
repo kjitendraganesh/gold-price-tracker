@@ -55,7 +55,7 @@ function seg(id,opts,key){const el=$(id);el.innerHTML='';opts.forEach(o=>{const 
  b.setAttribute('aria-pressed',st[key]===o);b.onclick=()=>{st[key]=o;render()};el.appendChild(b)})}
 async function load(){
  try{const t=await (await fetch('data/prices.csv?'+Date.now())).text();
-  rows=t.trim().split('\n').slice(1).map(l=>{const c=l.split(',');return{t:Date.parse(c[0]),a:+c[1],b:+c[2],fx:+c[3]}}).filter(r=>r.t&&r.a&&r.b);
+  rows=t.trim().split('\n').slice(1).map(l=>{const c=l.split(',');return{t:Date.parse(c[0]),a:+c[1],b:+c[2],fx:+c[3],ia:+c[4]||(+c[1])*(+c[3])}}).filter(r=>r.t&&r.a&&r.b);
  }catch(e){$('msg').textContent='Could not load data/prices.csv.';return}
  if(!rows.length){$('sub').textContent='No readings yet. Run the “Fetch gold price” workflow once.';return}
  render();
@@ -74,7 +74,7 @@ function render(){
  for(const [id,l,f] of [['c22',l22,f22]]){const d=l-f,p=f?d/f*100:0;
   $(id).className='ch '+(d>=0?'up':'down');$(id).textContent=`${d>=0?'▲':'▼'} ${fmt(Math.abs(d))} (${p.toFixed(2)}%) over ${st.range==='All'?'all time':st.range}`}
  $('sub').textContent=`Per ${st.unit}, SGD (today's price also in INR). Updated ${new Date(last.t).toLocaleString()} · ${rows.length} readings stored · SGD→INR ${last.fx.toFixed(3)}`;
- const s22=v.map(r=>({x:r.t,y:conv(r)[0]}));
+ const mult=st.unit==='8 g'?8:1;const s22=v.map(r=>({x:r.t,y:conv(r)[0],inr:r.ia*mult}));
  const css=getComputedStyle(document.documentElement),c22=css.getPropertyValue('--c22'),grid=css.getPropertyValue('--line'),mute=css.getPropertyValue('--mute');
  const ds=(label,data,color)=>({label,data,borderColor:color,backgroundColor:color,borderWidth:2,pointRadius:v.length<60?3:0,pointHoverRadius:5,tension:.15});
  const span=(v[v.length-1].t-v[0].t)/864e5;
@@ -84,7 +84,7 @@ function render(){
   responsive:true,maintainAspectRatio:false,animation:false,parsing:false,interaction:{mode:'index',intersect:false},
   scales:{x:{type:'linear',ticks:{callback:tick,color:mute,maxTicksLimit:7},grid:{color:grid}},
           y:{ticks:{color:mute,callback:x=>sym()+fmt(x)},grid:{color:grid}}},
-  plugins:{legend:{labels:{color:mute,usePointStyle:true}},tooltip:{callbacks:{title:i=>new Date(i[0].parsed.x).toLocaleString(),label:c=>`${c.dataset.label}: ${sym()}${fmt(c.parsed.y)}`}}}}});
+  plugins:{legend:{labels:{color:mute,usePointStyle:true}},tooltip:{callbacks:{title:i=>new Date(i[0].parsed.x).toLocaleString(),label:c=>`${c.dataset.label}: ${sym()}${fmt(c.parsed.y)}  (₹${fmt(c.raw.inr)})`}}}}});
  const mm=a=>[Math.min(...a),Math.max(...a)];const [lo2,hi2]=mm(s22.map(p=>p.y));
  $('stats').innerHTML=[['22k high',hi2],['22k low',lo2]].map(([k,n])=>`<div><small>${k} (${st.range})</small>${sym()}${fmt(n)}</div>`).join('');
 }
